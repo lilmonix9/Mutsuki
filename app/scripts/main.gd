@@ -10,9 +10,11 @@ const MARKER_DISTANCES := [10.0, 100.0, 1000.0]
 
 func _ready() -> void:
 	_build_reference_scene()
-	print("MUTSUKI_READY version=%s godot=%s" % [
+	print("MUTSUKI_READY version=%s godot=%s voxel=%s precision=%s" % [
 		ProjectSettings.get_setting("application/config/version"),
 		Engine.get_version_info().string,
+		ClassDB.class_exists("VoxelLodTerrain"),
+		"double" if (Vector3(1.0e7, 0, 0) + Vector3(0.001, 0, 0)).x != 1.0e7 else "single",
 	])
 	_maybe_start_screenshots()
 

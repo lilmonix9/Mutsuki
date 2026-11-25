@@ -9,56 +9,46 @@
 # render 步骤需要 Xvfb 与 Mesa 的 Vulkan 软件驱动（Ubuntu：apt install xvfb mesa-vulkan-drivers）。
 #
 # 环境变量：
-#   GODOT_CACHE   Godot 编辑器与导出模板的缓存目录（默认 .cache/godot）
-#   GODOT_TPZ     已下载的导出模板 .tpz 路径（可选，省去下载）
+#   ENGINE_DIR    自编译引擎（Godot + Voxel Tools）所在目录，默认 .cache/engine。
+#                 需要 godot.linuxbsd.editor.x86_64、godot.linuxbsd.template_release.x86_64、
+#                 godot.windows.template_release.x86_64(.console).exe。
+#                 CI 由 engine 任务编译后传入；本地用 tools/build-engine.sh 编译。
+#   SKIP_WINDOWS=1  本地没有 Windows 模板时跳过 Windows 导出（CI 不允许跳过）。
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-# shellcheck source=godot-version.env
-source "$ROOT/tools/godot-version.env"
+# shellcheck source=engine.env
+source "$ROOT/tools/engine.env"
 
-TAG="${GODOT_VERSION}-${GODOT_STATUS}"
-CACHE="${GODOT_CACHE:-$ROOT/.cache/godot}/$TAG"
-GODOT="$CACHE/Godot_v${TAG}_linux.x86_64"
+ENGINE_DIR="${ENGINE_DIR:-$ROOT/.cache/engine}"
+GODOT="$ENGINE_DIR/godot.linuxbsd.editor.x86_64"
 TEMPLATE_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/godot/export_templates/${GODOT_VERSION}.${GODOT_STATUS}"
-BASE_URL="https://github.com/godotengine/godot/releases/download/${TAG}"
 APP="$ROOT/app"
 OUT="$ROOT/build"
 
 log() { printf '\n==> %s\n' "$*"; }
 
-download_verified() { # url dest sha512
-  local url="$1" dest="$2" sum="$3"
-  if [[ ! -f "$dest" ]]; then
-    curl -fL --retry 4 --retry-delay 5 -o "$dest.part" "$url"
-    mv "$dest.part" "$dest"
-  fi
-  echo "$sum  $dest" | sha512sum -c - || { rm -f "$dest"; echo "校验失败：$dest" >&2; exit 1; }
-}
-
+# 把自编译的模板按官方文件名装进 Godot 的模板目录，导出预设就不必写死路径。
 step_setup() {
-  log "准备 Godot $TAG"
-  mkdir -p "$CACHE"
-  if [[ ! -x "$GODOT" ]]; then
-    local zip="$CACHE/editor.zip"
-    download_verified "$BASE_URL/Godot_v${TAG}_linux.x86_64.zip" "$zip" "$GODOT_EDITOR_SHA512"
-    unzip -o -q "$zip" -d "$CACHE"
-    rm -f "$zip"
-    chmod +x "$GODOT"
-  fi
-  # 只解出需要的导出模板（Linux x86_64 与 Windows x86_64），完整包有 1.3 GB。
-  if [[ ! -f "$CACHE/templates/version.txt" ]]; then
-    local tpz="${GODOT_TPZ:-$CACHE/templates.tpz}"
-    download_verified "$BASE_URL/Godot_v${TAG}_export_templates.tpz" "$tpz" "$GODOT_TEMPLATES_SHA512"
-    unzip -o -q "$tpz" -d "$CACHE" \
-      'templates/version.txt' \
-      'templates/linux_*.x86_64' \
-      'templates/windows_*_x86_64*.exe'
-    [[ -z "${GODOT_TPZ:-}" ]] && rm -f "$tpz"
-  fi
-  mkdir -p "$(dirname "$TEMPLATE_DIR")"
+  log "准备自编译引擎（$ENGINE_DIR）"
+  [[ -f "$GODOT" ]] || { echo "缺少 $GODOT。先运行：tools/build-engine.sh linux-editor $ENGINE_DIR" >&2; exit 1; }
+  chmod +x "$ENGINE_DIR"/godot.linuxbsd.* 2>/dev/null || true
   rm -rf "$TEMPLATE_DIR"
-  ln -s "$CACHE/templates" "$TEMPLATE_DIR"
+  mkdir -p "$TEMPLATE_DIR"
+  echo "${GODOT_VERSION}.${GODOT_STATUS}" > "$TEMPLATE_DIR/version.txt"
+  install_template() { # 源文件名 模板文件名
+    if [[ -f "$ENGINE_DIR/$1" ]]; then
+      cp "$ENGINE_DIR/$1" "$TEMPLATE_DIR/$2"
+    else
+      echo "缺少模板：$ENGINE_DIR/$1" >&2
+      return 1
+    fi
+  }
+  install_template godot.linuxbsd.template_release.x86_64 linux_release.x86_64
+  if [[ "${SKIP_WINDOWS:-}" != 1 ]]; then
+    install_template godot.windows.template_release.x86_64.exe windows_release_x86_64.exe
+    install_template godot.windows.template_release.x86_64.console.exe windows_release_x86_64_console.exe
+  fi
   "$GODOT" --version
 }
 
@@ -77,8 +67,12 @@ step_export() {
   rm -rf "$OUT"
   mkdir -p "$OUT/linux" "$OUT/windows"
   "$GODOT" --headless --path "$APP" --export-release "Linux" "$OUT/linux/Mutsuki.x86_64"
-  "$GODOT" --headless --path "$APP" --export-release "Windows" "$OUT/windows/Mutsuki.exe"
-  for f in "$OUT/linux/Mutsuki.x86_64" "$OUT/windows/Mutsuki.exe"; do
+  local expected=("$OUT/linux/Mutsuki.x86_64")
+  if [[ "${SKIP_WINDOWS:-}" != 1 ]]; then
+    "$GODOT" --headless --path "$APP" --export-release "Windows" "$OUT/windows/Mutsuki.exe"
+    expected+=("$OUT/windows/Mutsuki.exe")
+  fi
+  for f in "${expected[@]}"; do
     [[ -s "$f" ]] || { echo "导出失败：缺少 $f" >&2; exit 1; }
   done
   cp "$ROOT/tools/README-dist.txt" "$OUT/linux/README.txt"

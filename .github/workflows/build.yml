@@ -1,31 +1,89 @@
 name: build
 
-# 每次 push 与 PR：测试 → 导出 Linux/Windows 便携版 → 两个平台各做一次无头冒烟测试
-# → 软件渲染截图测试 → 上传构建产物与截图。
+# 每次 push 与 PR：
+#   engine   编译 Godot + Voxel Tools（四个变体并行）。结果按 tools/engine.env 与 build-engine.sh 的哈希缓存，
+#            版本不变时直接取缓存，几十秒完成。
+#   build    测试 → 导出 Linux/Windows 便携版 → Linux 冒烟测试 → 软件渲染截图测试 → 上传产物与截图
+#   smoke-windows   在 Windows 上无头启动导出版
+#   double-precision  用双精度编辑器跑全部测试，并断言双精度生效
 on:
   push:
   pull_request:
   workflow_dispatch:
 
+# 不取消进行中的运行：引擎编译很贵，半途取消就白跑了。
 concurrency:
   group: build-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
-  build:
-    name: 测试与导出
-    runs-on: ubuntu-24.04
+  engine:
+    name: 引擎 ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: linux-editor,        os: ubuntu-24.04 }
+          - { name: linux-editor-double, os: ubuntu-24.04 }
+          - { name: linux-template,      os: ubuntu-24.04 }
+          - { name: windows-template,    os: windows-2025 }
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@v4
 
-      - name: 读取固定的 Godot 版本
-        run: grep -E '^GODOT_(VERSION|STATUS)=' tools/godot-version.env >> "$GITHUB_ENV"
-
-      - name: 缓存 Godot 编辑器与导出模板
-        uses: actions/cache@v4
+      - name: 查找已编译的引擎
+        id: cache
+        uses: actions/cache/restore@v4
         with:
-          path: .cache/godot
-          key: godot-${{ env.GODOT_VERSION }}-${{ env.GODOT_STATUS }}-${{ hashFiles('tools/godot-version.env') }}
+          path: engine-bin
+          key: engine-${{ matrix.name }}-${{ hashFiles('tools/engine.env', 'tools/build-engine.sh') }}
+
+      - name: 安装 SCons（Windows）
+        if: steps.cache.outputs.cache-hit != 'true' && runner.os == 'Windows'
+        run: |
+          source tools/engine.env
+          python -m pip install "scons==$SCONS_VERSION"
+          scons --version
+
+      - name: 编译
+        if: steps.cache.outputs.cache-hit != 'true'
+        env:
+          PYTHONIOENCODING: utf-8
+        run: tools/build-engine.sh ${{ matrix.name }} engine-bin
+
+      - name: 缓存编译结果
+        if: steps.cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: engine-bin
+          key: ${{ steps.cache.outputs.cache-primary-key }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: engine-${{ matrix.name }}
+          path: engine-bin/
+          retention-days: 7
+          if-no-files-found: error
+
+  build:
+    name: 测试与导出
+    needs: engine
+    runs-on: ubuntu-24.04
+    env:
+      ENGINE_DIR: ${{ github.workspace }}/.cache/engine
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 下载自编译引擎
+        uses: actions/download-artifact@v4
+        with:
+          pattern: engine-*
+          path: .cache/engine
+          merge-multiple: true
 
       - name: 安装软件渲染环境（Xvfb + Mesa lavapipe）
         run: |
@@ -33,7 +91,7 @@ jobs:
           sudo apt-get install -y -q --no-install-recommends xvfb mesa-vulkan-drivers
           dpkg-query -W xvfb mesa-vulkan-drivers
 
-      - name: 准备 Godot
+      - name: 准备引擎与导出模板
         run: tools/build.sh setup
       - name: 导入项目
         run: tools/build.sh import
@@ -83,3 +141,21 @@ jobs:
         shell: bash
         # 用 console 包装程序启动，才能拿到标准输出。
         run: tools/smoke.sh dist/Mutsuki.console.exe
+
+  double-precision:
+    name: 双精度测试
+    needs: engine
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: engine-linux-editor-double
+          path: .cache/engine-double
+      - name: 用双精度编辑器跑全部测试
+        run: |
+          G=.cache/engine-double/godot.linuxbsd.editor.double.x86_64
+          chmod +x "$G"
+          "$G" --version
+          "$G" --headless --path app --import
+          "$G" --headless --path app -s res://tests/run_tests.gd -- --expect-double

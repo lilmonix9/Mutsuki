@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # 冒烟测试：无头启动一个导出的可执行文件，跑若干帧后退出。
-# 通过条件：退出码为 0；日志里有启动标记 MUTSUKI_READY；没有脚本错误。
+# 通过条件：退出码为 0；日志里有启动标记 MUTSUKI_READY 且 voxel=true（导出模板里确实有 Voxel Tools）；没有脚本错误。
 #   tools/smoke.sh <可执行文件>
 set -euo pipefail
 
@@ -17,6 +17,7 @@ cat "$LOG"
 fail() { echo "冒烟测试失败：$*" >&2; exit 1; }
 [[ $code -eq 0 ]] || fail "退出码 $code"
 grep -q "MUTSUKI_READY" "$LOG" || fail "没有看到启动标记 MUTSUKI_READY"
+grep -q "MUTSUKI_READY .*voxel=true" "$LOG" || fail "导出版里没有 Voxel Tools（模板不是自编译的？）"
 if grep -qE "SCRIPT ERROR|Parse Error|Failed to load" "$LOG"; then
   fail "日志里有脚本或加载错误"
 fi

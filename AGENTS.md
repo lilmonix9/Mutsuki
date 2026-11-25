@@ -14,7 +14,7 @@
 - **完成以云端为准**：GitHub Actions 测试通过、产出可下载构建，才算完成。
 - **看不见的画面不算验证过**：能自动检查的用几何检查或软件渲染截图比对；仍无法确认的写进 [`docs/to-experience.md`](docs/to-experience.md)。
 - **小步提交**；会话结束前更新 `docs/progress.md`。
-- 关键依赖固定版本（当前 Godot 版本见 `tools/godot-version.env`）。
+- 关键依赖固定版本：引擎（Godot + Voxel Tools）版本与校验值见 `tools/engine.env`。
 
 ## 产品要求（锁定，改动须产品负责人拍板）
 
@@ -44,7 +44,8 @@
 ## 构建与测试
 
 ```sh
-tools/build.sh           # 下载并校验固定版本的 Godot → 导入 → 测试 → 导出 Linux/Windows → 冒烟测试 → 软件渲染截图测试
+tools/build-engine.sh linux-editor .cache/engine     # 编译引擎（Godot + Voxel Tools），见决策 0004；CI 会自动编译并缓存
+tools/build.sh           # 准备引擎 → 导入 → 测试 → 导出 Linux/Windows → 冒烟测试 → 软件渲染截图测试
 tools/build.sh test      # 只跑测试
 tools/build.sh render    # 只跑截图测试（需先 export；需要 xvfb 与 mesa-vulkan-drivers）
 ```
@@ -59,7 +60,7 @@ tools/build.sh render    # 只跑截图测试（需先 export；需要 xvfb 与 
 | --- | --- |
 | `app/` | Godot 项目 |
 | `app/tests/` | 无头自动测试 |
-| `tools/` | 构建脚本与固定版本信息 |
+| `tools/` | 构建脚本、引擎编译脚本与固定版本信息（`engine.env`） |
 | `docs/vision.md` | 项目书（版本升级时更新） |
 | `docs/decisions/` | 决策记录，每篇几行；只增不改 |
 | `docs/progress.md` | 当前阶段、已完成、进行中、已知问题 |
