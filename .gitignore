@@ -1,0 +1,5 @@
+# Godot 导入缓存（可重建）
+app/.godot/
+# 构建产物与本地工具缓存
+build/
+.cache/

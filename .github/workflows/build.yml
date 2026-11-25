@@ -1,0 +1,66 @@
+name: build
+
+# 每次 push 与 PR：测试 → 导出 Linux/Windows 便携版 → 两个平台各做一次无头冒烟测试 → 上传构建产物。
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: 测试与导出
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 读取固定的 Godot 版本
+        run: grep -E '^GODOT_(VERSION|STATUS)=' tools/godot-version.env >> "$GITHUB_ENV"
+
+      - name: 缓存 Godot 编辑器与导出模板
+        uses: actions/cache@v4
+        with:
+          path: .cache/godot
+          key: godot-${{ env.GODOT_VERSION }}-${{ env.GODOT_STATUS }}-${{ hashFiles('tools/godot-version.env') }}
+
+      - name: 准备 Godot
+        run: tools/build.sh setup
+      - name: 导入项目
+        run: tools/build.sh import
+      - name: 自动测试
+        run: tools/build.sh test
+      - name: 导出
+        run: tools/build.sh export
+      - name: 冒烟测试（Linux）
+        run: tools/build.sh smoke
+
+      - name: 上传 Linux 版
+        uses: actions/upload-artifact@v4
+        with:
+          name: Mutsuki-linux-x86_64
+          path: build/linux/
+          if-no-files-found: error
+      - name: 上传 Windows 版
+        uses: actions/upload-artifact@v4
+        with:
+          name: Mutsuki-windows-x86_64
+          path: build/windows/
+          if-no-files-found: error
+
+  smoke-windows:
+    name: 冒烟测试（Windows）
+    needs: build
+    runs-on: windows-2025
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: Mutsuki-windows-x86_64
+          path: dist
+      - name: 无头启动 Windows 版
+        shell: bash
+        # 用 console 包装程序启动，才能拿到标准输出。
+        run: tools/smoke.sh dist/Mutsuki.console.exe
