@@ -34,6 +34,7 @@ if [[ "$PLATFORM" == windows ]]; then HOST_PY="$(command -v python)"; else HOST_
 
 log() { printf '\n==> %s\n' "$*"; }
 mkdir -p "$WORK" "$OUTDIR"
+OUTDIR="$(cd "$OUTDIR" && pwd)"  # 转成绝对路径：后面会 cd 进源码目录
 SRC="$WORK/godot"
 
 log "获取源码：Godot $GODOT_VERSION ($GODOT_COMMIT) + Voxel Tools $VOXEL_VERSION ($VOXEL_COMMIT)"
