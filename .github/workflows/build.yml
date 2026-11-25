@@ -1,6 +1,7 @@
 name: build
 
-# 每次 push 与 PR：测试 → 导出 Linux/Windows 便携版 → 两个平台各做一次无头冒烟测试 → 上传构建产物。
+# 每次 push 与 PR：测试 → 导出 Linux/Windows 便携版 → 两个平台各做一次无头冒烟测试
+# → 软件渲染截图测试 → 上传构建产物与截图。
 on:
   push:
   pull_request:
@@ -26,6 +27,12 @@ jobs:
           path: .cache/godot
           key: godot-${{ env.GODOT_VERSION }}-${{ env.GODOT_STATUS }}-${{ hashFiles('tools/godot-version.env') }}
 
+      - name: 安装软件渲染环境（Xvfb + Mesa lavapipe）
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q --no-install-recommends xvfb mesa-vulkan-drivers
+          dpkg-query -W xvfb mesa-vulkan-drivers
+
       - name: 准备 Godot
         run: tools/build.sh setup
       - name: 导入项目
@@ -36,6 +43,18 @@ jobs:
         run: tools/build.sh export
       - name: 冒烟测试（Linux）
         run: tools/build.sh smoke
+      - name: 软件渲染截图测试
+        run: tools/build.sh render
+      - name: 上传截图与差异图
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots
+          path: |
+            build/screenshots/
+            build/screenshot-diff/
+            build/render.log
+          if-no-files-found: ignore
 
       - name: 上传 Linux 版
         uses: actions/upload-artifact@v4

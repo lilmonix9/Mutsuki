@@ -14,6 +14,7 @@ func _ready() -> void:
 		ProjectSettings.get_setting("application/config/version"),
 		Engine.get_version_info().string,
 	])
+	_maybe_start_screenshots()
 
 
 func _process(_delta: float) -> void:
@@ -21,6 +22,16 @@ func _process(_delta: float) -> void:
 	_info.text = "位置 (%.1f, %.1f, %.1f) m   速度 %.1f m/s   FPS %d\n点击窗口环视 · WASD 移动 · 空格/Ctrl 升降 · Shift 加速 · 滚轮调速 · R 回起点 · Esc 释放鼠标" % [
 		p.x, p.y, p.z, _camera.speed, Engine.get_frames_per_second(),
 	]
+
+
+## 启动参数带 --screenshot-dir=<目录> 时进入截图模式（见 screenshot_runner.gd）。
+func _maybe_start_screenshots() -> void:
+	for arg in OS.get_cmdline_user_args():
+		if arg.begins_with("--screenshot-dir="):
+			var runner: Node = preload("res://scripts/screenshot_runner.gd").new()
+			runner.out_dir = arg.trim_prefix("--screenshot-dir=")
+			add_child(runner)
+			return
 
 
 func _build_reference_scene() -> void:

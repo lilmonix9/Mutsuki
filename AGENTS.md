@@ -44,9 +44,12 @@
 ## 构建与测试
 
 ```sh
-tools/build.sh           # 下载并校验固定版本的 Godot → 导入 → 测试 → 导出 Linux/Windows → 冒烟测试
+tools/build.sh           # 下载并校验固定版本的 Godot → 导入 → 测试 → 导出 Linux/Windows → 冒烟测试 → 软件渲染截图测试
 tools/build.sh test      # 只跑测试
+tools/build.sh render    # 只跑截图测试（需先 export；需要 xvfb 与 mesa-vulkan-drivers）
 ```
+
+截图测试的基准图在 `app/tests/render_baselines/`，更新规则见该目录的 README：只在画面按预期变化、且逐张看过之后更新。
 
 产物在 `build/`。CI 见 `.github/workflows/build.yml`，每次 push 自动运行，产物作为 Actions artifact 上传。
 
