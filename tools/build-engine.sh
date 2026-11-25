@@ -29,6 +29,9 @@ case "$NAME" in
   *) echo "未知名称：$NAME" >&2; exit 2 ;;
 esac
 
+# 先记下系统自带的 Python：后面会把 buildroot 放进 PATH，而 buildroot 的 Python 没有 SSL，下载会失败。
+if [[ "$PLATFORM" == windows ]]; then HOST_PY="$(command -v python)"; else HOST_PY="$(command -v python3)"; fi
+
 log() { printf '\n==> %s\n' "$*"; }
 mkdir -p "$WORK" "$OUTDIR"
 SRC="$WORK/godot"
@@ -63,8 +66,7 @@ fi
 # 屏幕阅读器支持（AccessKit）：官方发布版也带。版本由 Godot 源码里的脚本固定（4.7.2 为 0.22.3）。
 # 不装的话 Windows 编译直接报错，Linux 会静默去掉这项功能。
 log "安装 AccessKit"
-if [[ "$PLATFORM" == windows ]]; then PY=python; else PY=python3; fi
-(cd "$SRC" && "$PY" misc/scripts/install_accesskit.py)
+(cd "$SRC" && "$HOST_PY" misc/scripts/install_accesskit.py)
 
 # Windows：不编 Direct3D 12（Forward+ 走 Vulkan；见决策 0004）。
 extra=()
