@@ -29,6 +29,8 @@
 
 ## 已知问题
 
+- **Voxel Tools 1.7：SDF 通道设为 32 位时，`VoxelToolBuffer.do_sphere` 写坏数据**（球内变 NaN，球外体素也被改成 0）。16 位（默认）正常。2026-11-25 本地自编译引擎复现。多精度实验要用到高精度 SDF，届时调查原因（我们的用法、上游缺陷，或需自建），必要时向上游报告。
+
 - Actions 警告：`actions/checkout@v4` 等基于 Node.js 20，已被强制跑在 Node.js 24 上；目前不影响结果，见 backlog。
 - Actions artifact 默认只保留 90 天，长期保存要靠 GitHub Releases（见 backlog）。
 - 冒烟测试为无头模式，不经过渲染器（见决策 0002）。
