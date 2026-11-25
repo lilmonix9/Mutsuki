@@ -6,3 +6,4 @@
 - 构建流水线跑通后，打 tag 时自动发布 GitHub Release（附大白话说明与截图），项目书第 2 节要求每次 Release 都有。
 - 核显上选哪种渲染器（Forward+ / Mobile / Compatibility），交给 P0 性能实验。
 - 空场景的相机代码是一次性的；P2 的飞行与第一人称模式要在正式架构里重做。
+- 把 `actions/checkout`、`upload-artifact`、`download-artifact`、`cache` 升到基于 Node.js 24 的新大版本（CI 已出现 Node 20 弃用警告）。
