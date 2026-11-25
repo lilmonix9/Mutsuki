@@ -60,10 +60,20 @@ if [[ "$PLATFORM" == linuxbsd ]]; then
   export PATH="$BR/bin:$PATH"
 fi
 
+# 屏幕阅读器支持（AccessKit）：官方发布版也带。版本由 Godot 源码里的脚本固定（4.7.2 为 0.22.3）。
+# 不装的话 Windows 编译直接报错，Linux 会静默去掉这项功能。
+log "安装 AccessKit"
+if [[ "$PLATFORM" == windows ]]; then PY=python; else PY=python3; fi
+(cd "$SRC" && "$PY" misc/scripts/install_accesskit.py)
+
+# Windows：不编 Direct3D 12（Forward+ 走 Vulkan；见决策 0004）。
+extra=()
+[[ "$PLATFORM" == windows ]] && extra+=(d3d12=no)
+
 log "编译 $NAME（platform=$PLATFORM target=$TARGET precision=$PRECISION，$JOBS 线程）"
 cd "$SRC"
 scons platform="$PLATFORM" target="$TARGET" precision="$PRECISION" \
-  production=yes tests=no debug_symbols=no -j"$JOBS"
+  production=yes tests=no debug_symbols=no accesskit=yes "${extra[@]}" -j"$JOBS"
 
 suffix=""; [[ "$PRECISION" == double ]] && suffix=".double"
 case "$PLATFORM" in
