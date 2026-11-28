@@ -5,7 +5,7 @@ name: build
 #            版本不变时直接取缓存，几十秒完成。
 #   build    测试 → 导出 Linux/Windows 便携版 → Linux 冒烟测试 → 软件渲染截图测试 → 上传产物与截图
 #   smoke-windows   在 Windows 上无头启动导出版
-#   double-precision  用双精度编辑器跑全部测试，并断言双精度生效
+#   double-precision  用双精度编辑器跑全部测试，断言双精度生效、带 Voxel Tools，并在 1000 km 处放置与拾取体素
 on:
   push:
   pull_request:
@@ -97,6 +97,8 @@ jobs:
         run: tools/build.sh import
       - name: 自动测试
         run: tools/build.sh test
+      - name: 远坐标反向对照（单精度在 1000 km 处必须判错，证明测试足够灵敏）
+        run: tools/far_test.sh "$ENGINE_DIR/godot.linuxbsd.editor.x86_64" single
       - name: 导出
         run: tools/build.sh export
       - name: 冒烟测试（Linux）
@@ -158,4 +160,8 @@ jobs:
           chmod +x "$G"
           "$G" --version
           "$G" --headless --path app --import
-          "$G" --headless --path app -s res://tests/run_tests.gd -- --expect-double
+          "$G" --headless --path app -s res://tests/run_tests.gd -- --expect-double | tee double-tests.log
+          # 双精度版本同样必须带 Voxel Tools
+          grep -q "MUTSUKI_READY .*voxel=true precision=double" double-tests.log
+      - name: 远坐标测试（双精度，距原点 1000 km 放置与拾取体素）
+        run: tools/far_test.sh .cache/engine-double/godot.linuxbsd.editor.double.x86_64 double
